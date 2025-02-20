@@ -7,46 +7,39 @@ Original file is located at
     https://colab.research.google.com/drive/1IrdoMRGWqQ3T-2CE2ZTihM3oZbyETPcu
 """
 
-import torch
-from torch import nn
-from transformers import SegformerImageProcessor, SegformerForSemanticSegmentation
-from PIL import Image
-import matplotlib.pyplot as plt
-import requests
-
-# convenience expression for automatically determining device
+# Определение устройства для вычислений
 device = (
-    "cuda"  # Device for NVIDIA or AMD GPUs
+    "cuda"  # Для NVIDIA или AMD GPU
     if torch.cuda.is_available()
-    else "mps"  # Device for Apple Silicon (Metal Performance Shaders)
+    else "mps"  # Для Apple Silicon (Metal Performance Shaders)
     if torch.backends.mps.is_available()
-    else "cpu"
+    else "cpu"  # Для CPU
 )
 
-# Load models
+# Загрузка моделей
 image_processor = SegformerImageProcessor.from_pretrained("jonathandinu/face-parsing")
 model = SegformerForSemanticSegmentation.from_pretrained("jonathandinu/face-parsing")
 model.to(device)
 
-# URL of the image to be processed
+# URL изображения для обработки
 url = "https://avatars.mds.yandex.net/get-kinopoisk-image/4303601/56b44a82-caeb-48f9-b9d2-5deafaf202ca/1920x"
 image = Image.open(requests.get(url, stream=True).raw)
 
-# Run inference on image
+# Инференс на изображении
 inputs = image_processor(images=image, return_tensors="pt").to(device)
 outputs = model(**inputs)
-logits = outputs.logits  # Shape (batch_size, num_labels, ~height/4, ~width/4)
+logits = outputs.logits  # Размер (batch_size, num_labels, ~height/4, ~width/4)
 
-# Resize output to match input image dimensions
+# Изменение размера вывода, чтобы соответствовать размерам исходного изображения
 upsampled_logits = nn.functional.interpolate(logits,
                 size=image.size[::-1], # H x W
                 mode='bilinear',
                 align_corners=False)
 
-# Get label masks
+# Получение масок меток
 labels = upsampled_logits.argmax(dim=1)[0]
 
-# Move to CPU to visualize in matplotlib
+# Перемещение на CPU для визуализации в matplotlib
 labels_viz = labels.cpu().numpy()
 plt.imshow(labels_viz)
 plt.show()
